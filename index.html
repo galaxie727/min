@@ -1,0 +1,273 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>デカブサクラフト</title>
+<style>
+*{box-sizing:border-box}
+html,body{
+  margin:0;
+  width:100%;
+  height:100%;
+  overflow:hidden;
+  background:#f3f3f3;
+  font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Noto Sans JP",sans-serif;
+  color:#333;
+}
+#game{
+  width:100vw;
+  height:100dvh;
+  position:relative;
+  padding-top:calc(env(safe-area-inset-top) + 28px);
+  background:radial-gradient(circle at 50% 30%,#fff,#eee);
+}
+#title{
+  text-align:center;
+  font-size:28px;
+  color:#555;
+  margin-bottom:14px;
+}
+#status{
+  display:flex;
+  justify-content:center;
+  gap:8px;
+  margin-bottom:14px;
+}
+.badge{
+  background:rgba(255,255,255,.8);
+  border:1px solid #ddd;
+  border-radius:999px;
+  padding:7px 12px;
+  font-size:14px;
+}
+#map{
+  width:328px;
+  height:328px;
+  margin:0 auto;
+  display:grid;
+  grid-template-columns:repeat(8,1fr);
+  grid-template-rows:repeat(8,1fr);
+  gap:3px;
+  padding:6px;
+  border-radius:18px;
+  background:rgba(255,255,255,.55);
+  border:1px solid #ddd;
+}
+.cell{
+  border-radius:8px;
+  background:#d9e8cf;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-size:22px;
+  user-select:none;
+}
+.cell:active{
+  transform:scale(.94);
+}
+.grass{background:#d9e8cf}
+.wood{background:#d6c1a8}
+.stone{background:#d2d2d2}
+.empty{background:#e9eadf}
+.house{background:#f1dfc4}
+.chair{background:#efe1d5}
+.sign{background:#eee5c8}
+
+#speech{
+  height:34px;
+  margin-top:14px;
+  text-align:center;
+  font-size:16px;
+  color:#666;
+}
+#tools{
+  position:absolute;
+  left:0;
+  bottom:calc(env(safe-area-inset-bottom) + 26px);
+  width:100%;
+  display:flex;
+  justify-content:center;
+  gap:9px;
+  padding:0 12px;
+}
+button{
+  border:none;
+  border-radius:18px;
+  padding:12px 14px;
+  background:#ddd;
+  color:#2680ff;
+  font-size:14px;
+  min-width:78px;
+}
+button.selected{
+  background:#cfcfcf;
+  color:#111;
+}
+#hint{
+  position:absolute;
+  left:0;
+  bottom:calc(env(safe-area-inset-bottom) + 88px);
+  width:100%;
+  text-align:center;
+  font-size:13px;
+  color:#777;
+}
+</style>
+</head>
+<body>
+<div id="game">
+  <div id="title">デカブサクラフト</div>
+
+  <div id="status">
+    <div class="badge">木：<span id="woodCount">0</span></div>
+    <div class="badge">石：<span id="stoneCount">0</span></div>
+    <div class="badge">作った物：<span id="madeCount">0</span></div>
+  </div>
+
+  <div id="map"></div>
+
+  <div id="speech">木を切るか、やめるか</div>
+
+  <div id="hint">木・石をタップで回収。空きマスに作った物を置く。</div>
+
+  <div id="tools">
+    <button onclick="selectTool('hand')" id="btn-hand" class="selected">回収</button>
+    <button onclick="selectTool('house')" id="btn-house">小屋</button>
+    <button onclick="selectTool('chair')" id="btn-chair">イス</button>
+    <button onclick="selectTool('sign')" id="btn-sign">看板</button>
+  </div>
+</div>
+
+<script>
+const mapEl = document.getElementById("map");
+
+let wood = 0;
+let stone = 0;
+let made = 0;
+let tool = "hand";
+
+const size = 8;
+let map = [];
+
+const lines = [
+  "やってる感はある",
+  "今日はここまででいい",
+  "木だった",
+  "石だった",
+  "住むとは言ってない",
+  "イスは見るもの",
+  "看板に書くことがない",
+  "まあいいか"
+];
+
+function init(){
+  map = [];
+  for(let i=0;i<size*size;i++){
+    const r = Math.random();
+    if(r < .18) map.push("wood");
+    else if(r < .30) map.push("stone");
+    else map.push("grass");
+  }
+  render();
+}
+
+function render(){
+  mapEl.innerHTML = "";
+
+  map.forEach((type,i)=>{
+    const cell = document.createElement("div");
+    cell.className = "cell " + type;
+    cell.onclick = ()=>tapCell(i);
+
+    if(type==="wood") cell.textContent = "🌲";
+    if(type==="stone") cell.textContent = "🪨";
+    if(type==="grass") cell.textContent = "";
+    if(type==="empty") cell.textContent = "";
+    if(type==="house") cell.textContent = "🛖";
+    if(type==="chair") cell.textContent = "🪑";
+    if(type==="sign") cell.textContent = "🪧";
+
+    mapEl.appendChild(cell);
+  });
+
+  document.getElementById("woodCount").textContent = wood;
+  document.getElementById("stoneCount").textContent = stone;
+  document.getElementById("madeCount").textContent = made;
+}
+
+function tapCell(i){
+  const type = map[i];
+
+  if(tool === "hand"){
+    if(type === "wood"){
+      wood++;
+      map[i] = "empty";
+      say("木を拾った");
+    }else if(type === "stone"){
+      stone++;
+      map[i] = "empty";
+      say("石を拾った");
+    }else{
+      say("何もない");
+    }
+    render();
+    return;
+  }
+
+  if(type !== "empty" && type !== "grass"){
+    say("そこは無理");
+    return;
+  }
+
+  const cost = getCost(tool);
+
+  if(wood < cost.wood || stone < cost.stone){
+    say("素材が足りない");
+    return;
+  }
+
+  wood -= cost.wood;
+  stone -= cost.stone;
+  made++;
+  map[i] = tool;
+
+  if(tool==="house") say("小屋っぽい");
+  if(tool==="chair") say("座るとは言ってない");
+  if(tool==="sign") say("看板だけ立てた");
+
+  render();
+}
+
+function getCost(t){
+  if(t==="house") return {wood:3, stone:2};
+  if(t==="chair") return {wood:2, stone:0};
+  if(t==="sign") return {wood:1, stone:1};
+  return {wood:0, stone:0};
+}
+
+function selectTool(t){
+  tool = t;
+  document.querySelectorAll("button").forEach(b=>b.classList.remove("selected"));
+  document.getElementById("btn-" + t).classList.add("selected");
+
+  if(t==="hand") say("回収するか");
+  if(t==="house") say("小屋を作る気配");
+  if(t==="chair") say("イスの気配");
+  if(t==="sign") say("看板の気配");
+}
+
+function say(text){
+  document.getElementById("speech").textContent = text;
+}
+
+setInterval(()=>{
+  if(Math.random() < .45){
+    say(lines[Math.floor(Math.random()*lines.length)]);
+  }
+},3500);
+
+init();
+</script>
+</body>
+</html>
